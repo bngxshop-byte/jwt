@@ -32,7 +32,7 @@ def TOKEN_MAKER(OLD_ACCESS_TOKEN, NEW_ACCESS_TOKEN, OLD_OPEN_ID, NEW_OPEN_ID, ui
         "X-Unity-Version": "2018.4.11f1",
         "Accept": "*/*",
         "Authorization": "Bearer",
-        "ReleaseVersion": "OB52",
+        "ReleaseVersion": "OB53",
         "X-GA": "v1 1",
         "Accept-Encoding": "gzip, deflate, br",
         "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8",
