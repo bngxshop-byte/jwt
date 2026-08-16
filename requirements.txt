@@ -1,6 +1,7 @@
-Flask
-pycryptodome
 requests
-protobuf
-PyJWT
+pycryptodome
+blackboxprotobuf
+flask
+google-play-scraper
+urllib3
 gunicorn
