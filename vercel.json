@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "jwt.py",
+      "use": "@vercel/python",
+      "config": {
+        "pythonVersion": "3.11",
+        "installCommand": "pip install --no-cache-dir -r requirements.txt"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "jwt.py"
+    }
+  ]
+}
