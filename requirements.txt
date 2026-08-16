@@ -1,5 +1,0 @@
-requests
-Flask
-pycryptodome
-blackboxprotobuf
-google-play-scraper
