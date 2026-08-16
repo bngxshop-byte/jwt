@@ -7,29 +7,21 @@ import urllib3
 import sys
 import os
 
-# إضافة المسار للـ import
+# إضافة المسار الحالي للـ sys.path عشان يقرا xTnito
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-try:
-    from xTnito import xGeT
-except ImportError:
-    # تعريف دالة بديلة إذا لم توجد xTnito
-    def xGeT(uid, password):
-        return f"mock_token_{uid}_{password}"
+from xTnito import *
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
+
 
 @app.route('/get', methods=['GET'])
 def check_token():
     try:
         uid = request.args.get('uid')
         password = request.args.get('password')
-        
-        if not uid or not password:
-            return jsonify({"status": "error", "message": "Missing uid or password"})
-            
         url = "https://100067.connect.garena.com/oauth/guest/token/grant"
         headers = {
             "Host": "100067.connect.garena.com",
@@ -46,26 +38,24 @@ def check_token():
             "client_secret": "",
             "client_id": "100067",
         }
-        response = requests.post(url, headers=headers, data=data, verify=False)
-        
+        response = requests.post(url, headers=headers, data=data)
         try:
-            response_data = response.json()
-            print("RESPONSE JSON:", response_data)
+            data = response.json()
+            print("RESPONSE JSON:", data)
         except Exception as e:
             print("FAILED TO PARSE JSON:", response.text)
             return jsonify({"status": "error", "message": "Invalid response from Garena"})
 
-        if "access_token" not in response_data or "open_id" not in response_data:
-            return jsonify({"status": "error", "message": f"Missing keys in response: {response_data}"})
+        if "access_token" not in data or "open_id" not in data:
+            return jsonify({"status": "error", "message": f"Missing keys in response: {data}"})
 
-        token = xGeT(uid, password)
+        token = xGeT(uid , password)
         if token:
             return jsonify({"status": "success", "token": token})
         else:
             return jsonify({"status": "failure", "message": "Failed to generate token"})
-            
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
-# Handler for Vercel
-app.debug = True
+# هذا السطر مهم عشان Vercel
+app = app
