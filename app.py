@@ -5,7 +5,8 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 import urllib3
 import logging
-import binascii
+import json
+import re
 
 # إعداد التسجيل
 logging.basicConfig(level=logging.DEBUG)
@@ -37,37 +38,6 @@ def decrypt_api(cipher_text):
 DEC = ['80', '81', '82', '83', '84', '85', '86', '87', '88', '89', '8a', '8b', '8c', '8d', '8e', '8f', '90', '91', '92', '93', '94', '95', '96', '97', '98', '99', '9a', '9b', '9c', '9d', '9e', '9f', 'a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9', 'aa', 'ab', 'ac', 'ad', 'ae', 'af', 'b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7', 'b8', 'b9', 'ba', 'bb', 'bc', 'bd', 'be', 'bf', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9', 'ca', 'cb', 'cc', 'cd', 'ce', 'cf', 'd0', 'd1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8', 'd9', 'da', 'db', 'dc', 'dd', 'de', 'df', 'e0', 'e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'e7', 'e8', 'e9', 'ea', 'eb', 'ec', 'ed', 'ee', 'ef', 'f0', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'fa', 'fb', 'fc', 'fd', 'fe', 'ff']
 
 XXX = ['1', '01', '02', '03', '04', '05', '06', '07', '08', '09', '0a', '0b', '0c', '0d', '0e', '0f', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '1a', '1b', '1c', '1d', '1e', '1f', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '2a', '2b', '2c', '2d', '2e', '2f', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '3a', '3b', '3c', '3d', '3e', '3f', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '4a', '4b', '4c', '4d', '4e', '4f', '50', '51', '52', '53', '54', '55', '56', '57', '58', '59', '5a', '5b', '5c', '5d', '5e', '5f', '60', '61', '62', '63', '64', '65', '66', '67', '68', '69', '6a', '6b', '6c', '6d', '6e', '6f', '70', '71', '72', '73', '74', '75', '76', '77', '78', '79', '7a', '7b', '7c', '7d', '7e', '7f']
-
-def Decrypt_ID(da):
-    """فك تشفير ID"""
-    if da is not None and len(da) == 10:
-        w = 128
-        xxx = len(da) / 2 - 1
-        xxx = str(xxx)[:1]
-        for _ in range(int(xxx) - 1):
-            w = w * 128
-        x1 = da[:2]
-        x2 = da[2:4]
-        x3 = da[4:6]
-        x4 = da[6:8]
-        x5 = da[8:10]
-        return str(w * XXX.index(x5) + (DEC.index(x2) * 128) + DEC.index(x1) + 
-                  (DEC.index(x3) * 128 * 128) + (DEC.index(x4) * 128 * 128 * 128))
-
-    if da is not None and len(da) == 8:
-        w = 128
-        xxx = len(da) / 2 - 1
-        xxx = str(xxx)[:1]
-        for _ in range(int(xxx) - 1):
-            w = w * 128
-        x1 = da[:2]
-        x2 = da[2:4]
-        x3 = da[4:6]
-        x4 = da[6:8]
-        return str(w * XXX.index(x4) + (DEC.index(x2) * 128) + DEC.index(x1) + 
-                  (DEC.index(x3) * 128 * 128))
-    
-    return None
 
 def Encrypt_ID(x):
     """تشفير ID"""
@@ -152,44 +122,51 @@ def TOKEN_MAKER(OLD_ACCESS_TOKEN, NEW_ACCESS_TOKEN, OLD_OPEN_ID, NEW_OPEN_ID, ui
         logger.info("=" * 60)
         logger.info(f"MajorLogin STATUS: {RESPONSE.status_code}")
         logger.info(f"RESPONSE LENGTH: {len(RESPONSE.text)}")
+        logger.info(f"RESPONSE (first 500): {RESPONSE.text[:500]}")
+        logger.info("=" * 60)
         
         if RESPONSE.status_code != 200:
             logger.error(f"❌ MajorLogin failed: {RESPONSE.status_code}")
-            logger.error(f"Response: {RESPONSE.text[:500]}")
             return False
         
         if len(RESPONSE.text) < 10:
             logger.error("❌ Response too short!")
             return False
         
-        # البحث عن التوكن - استخدام find بدلاً من index
-        token_start = RESPONSE.text.find("eyJhbGciOiJIUzI1NiIsInN2ciI6IjEiLCJ0eXAiOiJKV1QifQ")
-        if token_start == -1:
-            logger.error("❌ Token not found in response!")
-            logger.info(f"Response preview: {RESPONSE.text[:200]}")
-            return False
+        # محاولة 1: البحث عن التوكن في النص
+        token_patterns = [
+            r'eyJhbGciOiJIUzI1NiIsInN2ciI6IjEiLCJ0eXAiOiJKV1QifQ[^"]+',
+            r'"token":"([^"]+)"',
+            r'([A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+)'
+        ]
         
-        # استخراج التوكن
-        token_part = RESPONSE.text[token_start:]
+        for pattern in token_patterns:
+            match = re.search(pattern, RESPONSE.text)
+            if match:
+                token = match.group(1) if '(' in pattern else match.group(0)
+                # التأكد من أن التوكن صحيح
+                if len(token) > 50 and token.count('.') >= 2:
+                    logger.info(f"✅ Token found! Length: {len(token)}")
+                    return token
         
-        # البحث عن النقطة الثانية
-        first_dot = token_part.find(".")
-        if first_dot == -1:
-            logger.error("❌ No dots in token!")
-            return False
-            
-        second_dot = token_part.find(".", first_dot + 1)
-        if second_dot == -1:
-            logger.error("❌ Only one dot found!")
-            return False
+        # محاولة 2: البحث المباشر
+        if "eyJhbGciOiJIUzI1NiIsInN2ciI6IjEiLCJ0eXAiOiJKV1QifQ" in RESPONSE.text:
+            start = RESPONSE.text.find("eyJhbGciOiJIUzI1NiIsInN2ciI6IjEiLCJ0eXAiOiJKV1QifQ")
+            token = RESPONSE.text[start:]
+            # استخراج حتى نهاية التوكن
+            end = token.find('"', 1)
+            if end == -1:
+                end = token.find(' ', 1)
+            if end == -1:
+                end = len(token)
+            token = token[:end]
+            if token.count('.') >= 2:
+                logger.info(f"✅ Token found! Length: {len(token)}")
+                return token
         
-        # استخراج التوكن الكامل (حتى نهاية الجزء الثالث)
-        token = token_part[:second_dot + 44]  # 44 حرف للجزء الثالث
-        
-        logger.info(f"✅ Token extracted! Length: {len(token)}")
-        logger.info(f"Token preview: {token[:50]}...")
-        
-        return token
+        logger.error("❌ No valid token found in response!")
+        logger.info(f"Full response: {RESPONSE.text}")
+        return False
         
     except Exception as e:
         logger.error(f"❌ Error in TOKEN_MAKER: {str(e)}")
@@ -286,12 +263,6 @@ def get_token():
         logger.error(traceback.format_exc())
         return jsonify({"status": "error", "message": str(e)})
 
-# ==================== نقاط إضافية ====================
-@app.route('/get_token', methods=['GET'])
-def get_token_alt():
-    """نفس /get ولكن باسم مختلف"""
-    return get_token()
-
 @app.route('/test', methods=['GET'])
 def test_endpoint():
     """اختبار الحساب"""
@@ -346,14 +317,14 @@ def health_check():
     return jsonify({
         "status": "healthy",
         "service": "Free Fire Token Generator",
-        "version": "2.0.0"
+        "version": "2.1.0"
     })
 
 @app.route('/', methods=['GET'])
 def index():
     return jsonify({
         "message": "Free Fire Token Generator API",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "endpoints": {
             "/get": {
                 "method": "GET",
@@ -376,7 +347,7 @@ def index():
 
 if __name__ == '__main__':
     print("=" * 60)
-    print("🔥 Free Fire Token Generator API")
+    print("🔥 Free Fire Token Generator API v2.1")
     print("=" * 60)
     print("📌 Endpoints:")
     print("  - GET /get?uid=XXX&password=XXX")
