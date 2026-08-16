@@ -5,9 +5,6 @@ from datetime import datetime
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 import urllib3
-import blackboxprotobuf
-from google_play_scraper import app as ah
-import os
 
 urllib3.disable_warnings()
 
@@ -15,46 +12,11 @@ app = Flask(__name__)
 
 UA = "GarenaMSDK/4.0.32 (iPhone9,3;ios - 15.8.2;en-US;US;app v1.123.1 2019120273)"
 
-# متغيرات عامة
-login_url = None
-ob = None
-verr = None
-host = None
-is_initialized = False
-
-def initialize():
-    """تهيئة البيانات مرة واحدة فقط"""
-    global login_url, ob, verr, host, is_initialized
-    if is_initialized:
-        return
-    
-    try:
-        print("🔄 جاري تهيئة البيانات...")
-        data = ah("com.dts.freefireth", lang="fr", country="CA")
-        version = data["version"]
-        x = requests.get(
-            f"https://version.ggwhitehawk.com/live/ver.php"
-            f"?version={version}&lang=en&device=android&channel=android"
-            f"&appsttore=googleplay&region=en&whitelist_version=1.3.0"
-            f"&whitelist_sp_version=1.0.0&device_name=google%20G011A"
-            f"&device_CPU=ARMv7%20VFPv3%20NEON%20VMH"
-            f"&device_GPU=Adreno%20(TM)%20640&device_mem=1993",
-            timeout=30
-        ).json()
-        login_url = x.get("server_url")
-        ob = x.get("latest_release_version") 
-        verr = x.get("remote_version")
-        host = login_url.split('https://')[1].split('/')[0]
-        is_initialized = True
-        print(f"✅ تم التهيئة بنجاح: {host}")
-    except Exception as e:
-        print(f"❌ فشل التهيئة: {e}")
-        # استخدام قيم افتراضية في حالة الفشل
-        login_url = "https://example.com"
-        ob = "1.0.0"
-        verr = "1.0.0"
-        host = "example.com"
-        is_initialized = True
+# قيم ثابتة بدلاً من google_play_scraper
+LOGIN_URL = "https://garena.com"
+OB = "1.123.1"
+VERR = "1.0.0"
+HOST = "garena.com"
 
 def EncodeVarint(value):
     result = []
@@ -92,6 +54,8 @@ def BuildProto(fields):
 
 def ParseProto(data):
     try:
+        # استخدام blackboxprotobuf إذا كان موجوداً
+        import blackboxprotobuf
         return blackboxprotobuf.decode_message(data)[0]
     except:
         return {}
@@ -126,7 +90,7 @@ def BuildLogin(open_id, access):
         3: str(datetime.now())[:-7],
         4: "free fire",
         5: 2,
-        7: verr,
+        7: VERR,
         8: "Android OS 9 / API-28 (PQ3B.190801.10101846/G9650ZHU2ARC6)",
         9: "Handheld",
         10: "Verizon",
@@ -190,39 +154,28 @@ def MajorLogin(proto_data):
         "Authorization": "Bearer",
         "Connection": "Keep-Alive",
         "Content-Type": "application/x-www-form-urlencoded",
-        "Host": host,
-        "ReleaseVersion": ob,
+        "Host": HOST,
+        "ReleaseVersion": OB,
         "User-Agent": UA,
         "X-GA": "v1 1",
         "X-Unity-Version": "2018.4.11f1"
     }
     damn = EncodePyl(proto_data)
-    r = requests.post(f"https://{host}/MajorLogin", headers=headers, data=damn, verify=False, timeout=30)
+    r = requests.post(f"https://{HOST}/MajorLogin", headers=headers, data=damn, verify=False, timeout=30)
     return r
 
 @app.route('/')
 def home():
     return jsonify({
         "status": "running",
+        "message": "FreeFire API is working",
         "endpoints": {
-            "/get": "GET with uid and pw parameters",
-            "/health": "Check health status"
+            "/get": "GET with uid and pw parameters"
         }
-    })
-
-@app.route('/health')
-def health():
-    return jsonify({
-        "status": "healthy",
-        "initialized": is_initialized,
-        "host": host
     })
 
 @app.route("/get")
 def get():
-    # تهيئة البيانات عند أول طلب
-    initialize()
-    
     uid = request.args.get("uid")
     pw = request.args.get("pw")
     
@@ -230,23 +183,18 @@ def get():
         return jsonify({"error": "uid and pw parameters required"}), 400
     
     try:
-        print(f"📥 طلب من uid: {uid[:4]}...")
-        
         # الحصول على التوكن
         Token = GetToken(uid, pw)
+        
         if "data" not in Token:
-            return jsonify({"error": "Failed to get token", "details": Token}), 400
+            return jsonify({"error": "Login failed", "details": Token}), 400
             
         access = Token["data"]["access_token"]
         open_id = Token["data"]["open_id"]
         
-        # بناء البايلود
+        # بناء البايلود وإرساله
         payload = BuildLogin(open_id, access)
-        
-        # إرسال الطلب الرئيسي
         r = MajorLogin(payload)
-        
-        # تحليل النتيجة
         parsed = ParseProto(r.content)
         result = parsed.get("8")
         
@@ -256,8 +204,7 @@ def get():
         return jsonify({"token": result})
         
     except Exception as e:
-        print(f"❌ خطأ: {e}")
         return jsonify({"error": str(e)}), 500
 
-# تصدير التطبيق لـ Vercel
+# للتصدير إلى Vercel
 app = app
