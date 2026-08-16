@@ -1,3 +1,4 @@
+from flask import Flask, request, jsonify
 import requests
 import json
 from datetime import datetime
@@ -5,7 +6,6 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 import urllib3
 import blackboxprotobuf
-from flask import Flask, request, jsonify
 from google_play_scraper import app as ah
 
 urllib3.disable_warnings()
@@ -13,6 +13,7 @@ urllib3.disable_warnings()
 app = Flask(__name__)
 
 UA = "GarenaMSDK/4.0.32 (iPhone9,3;ios - 15.8.2;en-US;US;app v1.123.1 2019120273)"
+
 def up():
     global login_url, ob, verr
     data = ah("com.dts.freefireth", lang="fr", country="CA")
@@ -29,8 +30,9 @@ def up():
     ob = x.get("latest_release_version") 
     verr = x.get("remote_version")
     host = login_url.split('https://')[1].split('/')[0]
-    return login_url, ob, verr , host
-login_url, ob, verr , host = up()
+    return login_url, ob, verr, host
+
+login_url, ob, verr, host = up()
 
 def EncodeVarint(value):
     result = []
@@ -173,20 +175,37 @@ def MajorLogin(proto_data):
     r = requests.post(f"https://{host}/MajorLogin", headers=headers, data=damn, verify=False)
     return r
 
+@app.route('/')
+def home():
+    return jsonify({
+        "status": "running",
+        "endpoints": {
+            "/get": "GET with uid and pw parameters"
+        }
+    })
+
 @app.route("/get")
 def get():
     uid = request.args.get("uid")
     pw = request.args.get("pw")
-    Token = GetToken(uid, pw)
-    access = Token["data"]["access_token"]
-    open_id = Token["data"]["open_id"]
-    payload = BuildLogin(open_id, access)
-    r = MajorLogin(payload)
-    parsed = ParseProto(r.content)
-    result = parsed.get("8")
-    if isinstance(result, bytes):
-        result = result.decode("utf-8", errors="replace")
-    return jsonify({"token": result})
+    
+    if not uid or not pw:
+        return jsonify({"error": "uid and pw parameters required"}), 400
+    
+    try:
+        Token = GetToken(uid, pw)
+        access = Token["data"]["access_token"]
+        open_id = Token["data"]["open_id"]
+        payload = BuildLogin(open_id, access)
+        r = MajorLogin(payload)
+        parsed = ParseProto(r.content)
+        result = parsed.get("8")
+        if isinstance(result, bytes):
+            result = result.decode("utf-8", errors="replace")
+        return jsonify({"token": result})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+# Vercel handler
+def handler(request, context):
+    return app(request, context)
