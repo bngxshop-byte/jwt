@@ -7,10 +7,14 @@ import urllib3
 import sys
 import os
 
-# إضافة المسار الحالي للـ sys.path عشان يقرا xTnito
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from xTnito import *
+# تأكد من وجود xTnito في المسار
+try:
+    from xTnito import *
+except ImportError as e:
+    print(f"Error importing xTnito: {e}")
+    # لو مش موجود ارجع رسالة خطأ
+    def xGeT(uid, password):
+        return f"Error: xTnito not found"
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -57,5 +61,6 @@ def check_token():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
-# هذا السطر مهم عشان Vercel
-app = app
+# لو حبيت تشغل محلياً
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8792)
