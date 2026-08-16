@@ -2,4 +2,6 @@ flask
 requests
 pycryptodome
 urllib3
-google-play-scraper
+protobuf
+google-protobuf
+protobuf-decoder
