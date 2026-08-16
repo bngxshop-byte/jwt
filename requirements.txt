@@ -1,7 +1,5 @@
 requests
+Flask
 pycryptodome
 blackboxprotobuf
-flask
 google-play-scraper
-urllib3
-gunicorn
